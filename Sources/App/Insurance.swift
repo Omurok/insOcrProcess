@@ -6,6 +6,13 @@
 //
 
 import Vapor
+enum InsPayInterval:Int {
+    case 年繳 = 0
+    case 半年繳 = 1
+    case 季繳 = 2
+    case 月繳 = 3
+    case 躉繳 = 4
+}
 
 class InsProcessor{
     var insName = ""{didSet{print("保單名稱設定為",insName)}}
@@ -17,11 +24,11 @@ class InsProcessor{
     var insType:Int = 0{didSet{print("保單類型設定為",insType)}}
     var insTypeSet:Bool = false{didSet{print("保單類型已設定",insTypeSet)}}
     var insStart:[String] = []{didSet{print("保單生效日設定為",insStart)}}
-    var insLifeTime = ""{didSet{print("終身型設定為",insLifeTime)}}
+    var insLifeTime = false{didSet{print("終身型設定為",insLifeTime)}}
     var insEnd:[String] = []{didSet{print("契約終止日定為",insEnd)}}
-    var insPayDuration = ""{didSet{print("繳費年間定為",insPayDuration)}}
-    var insPayInterval = ""{didSet{print("繳費週期別定為",insPayInterval)}}//０：年繳１半年繳２季繳３月繳４躉繳
-    var insPayPrice = ""{didSet{print("每次繳費金額設定為",insPayPrice)}}
+    var insPayDuration:Int?{didSet{print("繳費年間定為",insPayDuration)}}
+    var insPayInterval:Int?{didSet{print("繳費週期別定為",insPayInterval)}}//０：年繳１半年繳２季繳３月繳４躉繳
+    var insPayPrice:Int?{didSet{print("每次繳費金額設定為",insPayPrice)}}
     var insFirstPay:[String] = []{didSet{print("首期繳費日設定為",insFirstPay)}}
     var insEndPay:[String] = []{didSet{print("期滿繳費日設定為",insEndPay)}}
     
@@ -52,11 +59,11 @@ class InsProcessor{
         insType = 0
         insTypeSet = false
         insStart = []
-        insLifeTime = ""
+        insLifeTime = false
         insEnd = []
-        insPayDuration = ""
-        insPayInterval = ""
-        insPayPrice = ""
+        insPayDuration = nil
+        insPayInterval = nil
+        insPayPrice = nil
         insFirstPay = []
         insEndPay = []
         var data:[String] = []
@@ -93,14 +100,13 @@ class InsProcessor{
                 if data[i].contains("種類") && insName == ""{
                     insName = colonProcessor(data[i])
                 }
-                if data[i].contains("新台幣")  && insPayPrice == ""{
+                if data[i].contains("新台幣")  && insPayPrice == nil{
                     print("data[i]",data[i])
                     let decoloned = colonProcessor(data[i])
                     //                    print("decoloned",decoloned)
-                    let money = moneyProcessor(decoloned)
+                    insPayPrice = moneyProcessor(decoloned)
                     //                    print("money",money)
-                    insPayPrice = String(money)
-                    
+
                 }
             }
         case InsuranceCompany.大都會.rawValue:
@@ -140,16 +146,10 @@ class InsProcessor{
                 if data[i].contains("00,000") && insMoney == nil{
                     insMoney = moneyProcessor(data[i])
                     if i+2 <= stringIndexMax{
-                        insPayPrice =  String(moneyProcessor(data[i+2]))
+                        insPayPrice =  moneyProcessor(data[i+2])
                     }
                 }
-                if data[i] == ("6") && insPayDuration == ""{insPayDuration = "6"}
-                if data[i] == ("10") && insPayDuration == ""{insPayDuration = "10"}
-                if data[i] == ("15") && insPayDuration == ""{insPayDuration = "15"}
-                if data[i] == ("20") && insPayDuration == ""{insPayDuration = "20"}
-                if data[i] == ("21") && insPayDuration == ""{insPayDuration = "21"}
-                if data[i] == ("25") && insPayDuration == ""{insPayDuration = "25"}
-                if data[i] == ("30") && insPayDuration == ""{insPayDuration = "30"}
+
             }
         case InsuranceCompany.遠雄.rawValue:
             for i in 0...stringIndexMax{
@@ -163,11 +163,9 @@ class InsProcessor{
                         insName = data[i+1]
                     }
                 }
-                if source.contains("附約") && source.count <= 25{
-                    insSurName.append(source)
-                }
-                if source.contains("每期保險費") && insPayPrice == ""{
-                    insPayPrice = String(moneyProcessor(source))
+                
+                if source.contains("每期保險費") && insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)
                 }
             }
             
@@ -178,6 +176,9 @@ class InsProcessor{
                 if source.contains("保險名稱") && insName == ""{
                     insName = colonProcessor(source)
                 }
+                if data[i].contains("萬元"){
+                    insMoney = wanYuanProcessor(data[i])
+                }
                 if source.contains("保險金額") && insMoney == nil{
                     insMoney = (wanYuanProcessor(source))
                 }
@@ -185,17 +186,17 @@ class InsProcessor{
                     insStart = dateExtractor(source)
                     insFirstPay = insStart
                 }
-                if source.contains("主契約保險費") && insPayPrice == ""{
+                if source.contains("主契約保險費") && insPayPrice == nil{
                     if i+1 <= stringIndexMax{
-                        insPayPrice =  String(moneyProcessor(data[i+1]))
+                        insPayPrice =  moneyProcessor(data[i+1])
                     }
                 }
-                if source.contains("元整") && (insPayPrice == "" || insPayPrice == "0"){
-                    insPayPrice = String(moneyProcessor(source))
+                if source.contains("元整") && (insPayPrice == nil || insPayPrice == 0){
+                    insPayPrice = moneyProcessor(source)
                 }
             }
+            
         case InsuranceCompany.全球.rawValue:
-
             for i in 0...stringIndexMax{
                 let source = data[i].replacingOccurrences(of: " ", with: "")
                 if source.contains("計劃單位") && insName == "" {
@@ -207,8 +208,8 @@ class InsProcessor{
                     insStart = dateExtractor(source)
                     insFirstPay = insStart
                 }
-                if source.contains("應繳保險費") && insPayPrice == ""{
-                    insPayPrice = String(moneyProcessor(source))
+                if source.contains("應繳保險費") && insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)
                 }
             }
           
@@ -228,20 +229,21 @@ class InsProcessor{
                 insFirstPay = insStart
             }
             
-            if data[i].contains("每期保險費") && insPayInterval == ""{
+            if data[i].contains("每期保險費") && insPayInterval == nil{
                 if data[i].contains("半年"){
-                    insPayInterval = "半年"
+                    insPayInterval = InsPayInterval.半年繳.rawValue
                     
                 }else if data[i].contains("年"){
-                    insPayInterval = "年"
+                    insPayInterval = InsPayInterval.年繳.rawValue
                 }else if data[i].contains("季"){
-                    insPayInterval = "季"
+                    insPayInterval = InsPayInterval.季繳.rawValue
                 }else if data[i].contains("月"){
-                    insPayInterval = "月"
+                    insPayInterval = InsPayInterval.月繳.rawValue
                 }
-                insPayPrice = String(moneyProcessor(data[i]))
+                insPayPrice = moneyProcessor(data[i])
             }
             }
+            
         case InsuranceCompany.保誠.rawValue:
             for i in 0...stringIndexMax{
                 if data[i].contains("保險種類") && insName == ""{
@@ -254,18 +256,18 @@ class InsProcessor{
                     insTarget = stringRemover(input: data[i], toRemove: "被保險人")
                     
                 }
-                if data[i].contains("每期保險費") && insPayInterval == ""{
+                if data[i].contains("每期保險費") && insPayInterval == nil{
                     if data[i].contains("半年"){
-                        insPayInterval = "半年"
+                        insPayInterval = InsPayInterval.半年繳.rawValue
                         
                     }else if data[i].contains("年"){
-                        insPayInterval = "年"
+                        insPayInterval = InsPayInterval.年繳.rawValue
                     }else if data[i].contains("季"){
-                        insPayInterval = "季"
+                        insPayInterval = InsPayInterval.季繳.rawValue
                     }else if data[i].contains("月"){
-                        insPayInterval = "月"
+                        insPayInterval = InsPayInterval.月繳.rawValue
                     }
-                    insPayPrice = String(moneyProcessor(data[i]))
+                    insPayPrice = moneyProcessor(data[i])
                 }
                 
                 if data[i].contains("單號") && insNumber == ""{
@@ -273,6 +275,7 @@ class InsProcessor{
                 }
                 
             }
+            
         case InsuranceCompany.國寶.rawValue:
             for i in 0...stringIndexMax{
                 if data[i].contains("保單") && insNumber == ""{
@@ -300,38 +303,51 @@ class InsProcessor{
                 }
                 
             }
+            
         case InsuranceCompany.南山.rawValue:
             for i in 0...stringIndexMax{
-                print("字串[\(data[i])]")
-//                if data[i].contains("主契約") && insName == ""{
-//                    if i-1 <= stringIndexMax && i-1 >= 0{
-//                        insName = data[i-1]}}
+                print("南山字串[\(data[i])]")
                 if  data[i].contains(",000") && insMoney == nil{
                     
                     let sliced = data[i].components(separatedBy: " ")
-                    print(sliced)
-                    if sliced.count == 3{
-                        insMoney = moneyProcessor(sliced[0])
-                        insPayPrice = sliced[1]
-                        insPayDuration = sliced[2]
+                    print("南山 sliced = ",sliced)
+                    var possibleNums:[Int] = []
+                    for data in sliced{
+                        if let sol = moneyProcessor(data),sol >= 6{
+                            possibleNums.append(sol)
+                        }
+                    }
+                    if possibleNums.count == 3{
+                        if insMoney == nil{
+                            insMoney = possibleNums[0]}
+                        if insPayPrice == nil{
+                            insPayPrice = possibleNums[1]}
+                        if insPayDuration == nil{
+                            insPayDuration = possibleNums[2]
+                            setEndPay()
+                        }
                     }
 //                    insMoney = moneyProcessor(data[i])
                 }
-//                if data[i] == "被保險人" && insTarget == ""{
-//                    if i+2 <= stringIndexMax {
-//                        insTarget = data[i+2]}}
-//                if data[i] == "保單號碼" && insNumber == ""{
-//                    if i+1 <= stringIndexMax {
-//                        insNumber = data[i+1]}}
-                if data[i].contains("元整"){
-                    if i-1 >= 0{
-                        print("HERE",data[i-1])
-                        if let price = Int(data[i-1]){
-                            insPayPrice =  String(moneyProcessor(String(price)))}
-                    }
+                let source = data[i]
+                if (source.contains("保險費") || source.contains("保費總額") ){
+                    print("保險費保費總額")
+                    if let hasValue = moneyProcessor(source){
+                        insPayPrice = hasValue
+                    }else if i < data.count+1 ,let hasValue = moneyProcessor(data[i+1]){
+                        insPayPrice = hasValue}
                 }
-                
-            }
+                if (source.contains("保險費") || source.contains("保費總額") ) && insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)
+                }
+                if data[i].contains("元整"){
+                    if let hasValue = moneyProcessor(data[i]){
+                        insPayPrice = hasValue
+                    }else if i-1 >= 0, let hasValue = moneyProcessor(data[i-1]){
+                        insPayPrice = hasValue
+                         }}}
+            findInsMoneyPrice(data)
+            
         default:
             print("into default")
             for i in 0...stringIndexMax{
@@ -347,14 +363,35 @@ class InsProcessor{
                             }}else{insTarget = source}}
                 }
                 
-                if source.contains("保險費") || insPayPrice == ""{
-                    insPayPrice = source
+                if (source.contains("保險費") || source.contains("保費總額") ) && insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)
                 }
                 
             }
         }
-        for i in 0...stringIndexMax{
-            let source = data[i].replacingOccurrences(of: " ", with: "")
+        
+        //END of Company Related set
+        findPayDuration(data)
+        
+        findInsType(data)
+        
+        
+        findInsMoneyPrice(data)
+        self.startOutput()
+    }
+    
+    //MARK:Finders
+    
+    func findInsType(_ data:[String]){
+        print("IN FINDINSTYPE")
+        for d in data{
+            
+            
+            if d.contains("附約") && (d.contains("醫療") || d.contains("失能") || d.contains("意外") || d.contains("傷害") || d.contains("癌症") || d.contains("手術") || d.contains("傷") || d.contains("殘")) {
+                insSurName.append(d)
+            }
+            
+            let source = d.replacingOccurrences(of: " ", with: "")
             if source.contains("單號") && insNumber == ""{
                 insNumber = colonProcessor(source)
             }
@@ -390,57 +427,45 @@ class InsProcessor{
             }
             
             if source.contains("終身"){
-                insLifeTime = "終身"
+                insLifeTime = true
                 insEnd = []
             }else if source.contains("定期"){
-                insLifeTime = "定期"
+                insLifeTime = false
             }
-            if source.contains("6年") && insPayDuration == ""{insPayDuration = "6"}
-            if source.contains("10年") && insPayDuration == ""{insPayDuration = "10"}
-            if source.contains("15年") && insPayDuration == ""{insPayDuration = "15"}
-            if source.contains("20年") && insPayDuration == ""{insPayDuration = "20"}
-            if source.contains("21年") && insPayDuration == ""{insPayDuration = "21"}
-            if source.contains("25年") && insPayDuration == ""{insPayDuration = "25"}
-            if source.contains("30年") && insPayDuration == ""{insPayDuration = "30"}
-            if source.contains("六年") && insPayDuration == ""{insPayDuration = "6"}
-            if source.contains("十年") && insPayDuration == ""{insPayDuration = "10"}
-            if source.contains("十五年") && insPayDuration == ""{insPayDuration = "15"}
-            if source.contains("二十年") && insPayDuration == ""{insPayDuration = "20"}
-            if source.contains("二十一年") && insPayDuration == ""{insPayDuration = "21"}
-            if source.contains("二十五年") && insPayDuration == ""{insPayDuration = "25"}
-            if source.contains("三十年") && insPayDuration == ""{insPayDuration = "30"}
+            
             
             if (source.contains("半年繳") || source.contains("按半年")){
-                insPayInterval = "半年繳"
-                if insPayPrice == ""{
-                    insPayPrice = String(moneyProcessor(source))}
+                insPayInterval = InsPayInterval.半年繳.rawValue
+                if insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)}
             }
-            if (source.contains("年繳") || source.contains("按年")){
-                insPayInterval = "年繳"
-                if insPayPrice == ""{
-                    insPayPrice = String(moneyProcessor(source))}
+            if (source.contains("年繳") || source.contains("按年") || source.contains("每拾")) {
+                insPayInterval = InsPayInterval.年繳.rawValue
+                if insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)}
             }
             if (source.contains("季繳") || source.contains("按季")){
-                insPayInterval = "季繳"
-                if insPayPrice == ""{
-                    insPayPrice = String(moneyProcessor(source))}
+                insPayInterval = InsPayInterval.季繳.rawValue
+                if insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)}
             }
             if (source.contains("月繳") || source.contains("按月")){
-                insPayInterval = "月繳"
-                if insPayPrice == ""{
-                    insPayPrice = String(moneyProcessor(source))}
+                insPayInterval = InsPayInterval.月繳.rawValue
+                if insPayPrice == nil{
+                    insPayPrice = moneyProcessor(source)}
             }
-            if (source.contains("躉繳") || source.contains("臺繳")) || source.contains("蔓繳"){
-                insPayInterval = "躉繳"
+            if (source.contains("躉繳") || source.contains("臺繳") || source.contains("蔓繳") || source.contains("並繳")){
+                insPayInterval = InsPayInterval.躉繳.rawValue
             }
             
             if source.contains("00,000") && insMoney == nil{
                 insMoney = moneyProcessor(source)
             }
             if source.contains("契約始期") && insStart == [] {
+                
                 insStart = dateExtractor(source)
                 insFirstPay = insStart
-                if let num = Int(insPayDuration){
+                if let num = insPayDuration,insStart.count > 0{
                     if let year = Int(insStart[0]){
                         let endYear = String(year+num)
                         insEndPay = insStart
@@ -451,14 +476,14 @@ class InsProcessor{
                 
             }
             if (source.contains("契約終期") || source.contains("契約滿期")) && insEnd == [] {
-                insLifeTime = "非終身"
+                insLifeTime = false
+                print("IN findInsTypeIN 契約終期 契約滿期")
                 insEnd = dateExtractor(source)
-                insEndPay = dateExtractor(source)
+                
             }
         }
-        
-        self.startOutput()
     }
+    
     func findInsName(_ data:[String]){
         //MARK:Find InsName 保單名稱
         let stringIndexMax = data.count - 1
@@ -525,6 +550,37 @@ class InsProcessor{
         print("hasNumber",hasNumber)
         if let number = hasNumber.first{
             insNumber = number
+        }
+    }
+    func findPayDuration(_ data:[String]){
+        for source in data{
+            if source.contains("6年"){insPayDuration = 6}
+            if source.contains("10年"){insPayDuration = 10}
+            if source.contains("15年"){insPayDuration = 15}
+            if source.contains("20年"){insPayDuration = 20}
+            if source.contains("21年"){insPayDuration = 21}
+            if source.contains("25年"){insPayDuration = 25}
+            if source.contains("30年"){insPayDuration = 30}
+            if source.contains("六年"){insPayDuration = 6}
+            if source.contains("十年"){insPayDuration = 10}
+            if source.contains("十五年"){insPayDuration = 15}
+            if source.contains("二十年"){insPayDuration = 20}
+            if source.contains("二十一年"){insPayDuration = 21}
+            if source.contains("二十五年"){insPayDuration = 25}
+            if source.contains("三十年"){insPayDuration = 30}
+        }
+        setEndPay()
+        
+    }
+    func setEndPay(){
+        if let foundPayDuration = insPayDuration{
+            if insFirstPay != [],insFirstPay.count == 3,let insFirstPayYear = Int(insFirstPay[0]){
+                insEndPay = [String(insFirstPayYear+foundPayDuration),insFirstPay[1],insFirstPay[2]]
+                if !insLifeTime{
+                    insEnd = insEndPay
+                }
+            }
+            
         }
     }
     
@@ -596,11 +652,40 @@ class InsProcessor{
                 insTargetSet = true}
             }}
     }
-    
-    func taiwanYearProcessor(_ input:String) -> Date?{
-        return Date()
+    func findInsMoneyPrice(_ data:[String]){
+        var possiblePrice:[Int] = []
+        let stringIndexMax = data.count - 1
+        for i in 0...stringIndexMax{
+            if data[i].contains(","){
+                let dataSliced = data[i].components(separatedBy: " ")
+                for j in dataSliced{
+                    if let sol = moneyProcessor(j){
+                        possiblePrice.append(sol)}}}}
+        print("possiblePrice=",possiblePrice)
+        
+        var max = 0
+        var second = 0
+        var minimal = 100
+        for price in possiblePrice{
+            if price > max{
+                max = price
+            }
+            if (price > second) && (price < max){
+                second = price
+            }
+            if price < minimal && price >= 6{
+                minimal = price
+            }
+        }
+        print("max",max,"second",second,"minimal",minimal)
+        if insMoney == nil{insMoney = max}
+        if insPayPrice == nil{insPayPrice = second}
+        if insPayDuration == nil && minimal != 100{insPayDuration = minimal
+            setEndPay()
+        }
     }
     
+    //MARK:Processors
     
     func colonProcessor(_ input:String) -> String{
         var output = ""
@@ -613,7 +698,7 @@ class InsProcessor{
         }
         return output
     }
-    func moneyProcessor(_ input:String) -> Int{
+    func moneyProcessor(_ input:String) -> Int?{
         print("MoneyProcessor Input = ",input)
         var result:Int = 0
         let output = input.components(separatedBy: CharacterSet.decimalDigits.inverted).joined(separator: "")
@@ -621,7 +706,12 @@ class InsProcessor{
             result = money
         }
         print("MoneyProcessor result = ",result)
-        return result
+        if result == 0{
+            return nil
+        }else{
+            return result
+        }
+        
     }
     func blankProcessor(_ input:String) -> String{
         var output = ""
@@ -636,11 +726,14 @@ class InsProcessor{
         }
         return output
     }
-    func wanYuanProcessor(_ input:String) -> Int{
+    func wanYuanProcessor(_ input:String) -> Int?{
         if input.contains("萬"){
-            var numberic = moneyProcessor(input)
-            numberic = numberic * 10000
-            return numberic
+            if let num = moneyProcessor(input){
+                return num * 10000
+            }else{
+                return nil
+            }
+
         }else{
             let numberic = moneyProcessor(input)
             return numberic
@@ -660,8 +753,13 @@ class InsProcessor{
         return output
     }
     func dateExtractor(_ input:String) -> [String]{
+        
         print("Into dateExtractor")
         print("USE STRING",input)
+        
+        
+        var output:[String] = []
+        
         if input.contains("年"){
             print("contains年月日")
             var components:[String] = []
@@ -704,14 +802,37 @@ class InsProcessor{
                 }
             }
             print("elementInString",elementInString)
-            return elementInString
+            output = elementInString
+            
             
         }else{
             print("NO 年月日")
             var trimmed = input.components(separatedBy: CharacterSet.decimalDigits.inverted)
+            print("trimmed separated",trimmed)
             trimmed = trimmed.filter { $0 != ""}
-            return trimmed
+            print("trimmed filted",trimmed)
+            
+            if trimmed.count < 3, trimmed.count > 1{
+                if let year = Int(trimmed[0]), year > 3000{
+                    output = [String(year/100),String(year%100),trimmed[1]]
+                }else if let month = Int(trimmed[1]), month > 12{
+                    output = [trimmed[0],String(month/100),String(month%100)]
+                }
         }
+            if let elementYear = output.first{
+                if let yearInInt = Int(elementYear){
+                    if yearInInt < 1000{
+                        let wYear = yearInInt + 1911
+                        output.remove(at: 0)
+                        output.insert(String(wYear), at: 0)
+                    }
+                }
+            }
+        
+
+       
+        }
+        return output
     }
     
     func arrayToDate(_ input:[String]) -> Date?{
@@ -839,8 +960,6 @@ fileprivate func > <T : Comparable>(lhs: T?, rhs: T?) -> Bool {
         return rhs < lhs
     }
 }
-
-
 public struct InsOriginalInfo: Content {
     var text: String
 }
